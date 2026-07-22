@@ -1,0 +1,12 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# full-res logo source (1.3MB) stays out of the repo
+no bkgrd.png
+.DS_Store

@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/* The app toggles a `.dark` class on <html> — map Tailwind's dark: variant to it
+ * (v4 defaults to prefers-color-scheme otherwise, which breaks the toggle). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* NWS type (Geist Sans / Geist Mono) is loaded via <link> in index.html */
+
+@theme {
+  --font-sans: "Geist", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.4);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.7);
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+/* ------------------------------------------------------------------ *
+ * NWS brand utilities — used by the landing page (marketing register).
+ * The workspace itself keeps normal, professional slate/indigo colors.
+ * ------------------------------------------------------------------ */
+@layer utilities {
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: #9a92ab;
+  }
+  .text-aurora {
+    background-image: linear-gradient(100deg, #a5b4fc, #a78bfa 50%, #e879f9);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-aurora {
+    background-image: linear-gradient(135deg, #6366f1, #a855f7);
+  }
+  .glass {
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  }
+  .glow-hover {
+    transition: border-color 0.35s, box-shadow 0.35s, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glow-hover:hover {
+    border-color: rgba(143, 116, 243, 0.45);
+    box-shadow: 0 0 40px -12px rgba(143, 116, 243, 0.5);
+  }
+  .bp-grid {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 44px 44px;
+  }
+  .animate-drift {
+    animation: nws-drift 20s ease-in-out infinite;
+  }
+  .animate-drift-slow {
+    animation: nws-drift 32s ease-in-out infinite reverse;
+  }
+  .animate-marquee {
+    animation: nws-marquee 34s linear infinite;
+  }
+}
+
+@keyframes nws-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(5%, -7%) scale(1.12); }
+  66% { transform: translate(-6%, 5%) scale(0.94); }
+}
+@keyframes nws-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-drift, .animate-drift-slow, .animate-marquee {
+    animation: none;
+  }
+}
