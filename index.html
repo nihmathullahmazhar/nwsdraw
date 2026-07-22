@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Pre-paint the brand dark before CSS loads — no white flash -->
+    <style>html { background: #0a0712; }</style>
     <link rel="icon" type="image/png" href="/nws-draw-logo.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#0a0712" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,6 +19,25 @@
       name="description"
       content="NWS Draw — a free, no-sign-in visual workspace. Draw, diagram, wireframe, design and present on an infinite canvas. Everything stays in your browser."
     />
+    <!-- Open Graph / social cards -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NWS Draw" />
+    <meta property="og:title" content="NWS Draw — Draw. Diagram. Present." />
+    <meta
+      property="og:description"
+      content="A free, no-sign-in visual workspace. Whiteboards, flowcharts, wireframes and slide decks on one infinite canvas."
+    />
+    <meta property="og:url" content="https://nwsdraw.vercel.app/" />
+    <meta property="og:image" content="https://nwsdraw.vercel.app/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="NWS Draw — Draw. Diagram. Present." />
+    <meta
+      name="twitter:description"
+      content="A free, no-sign-in visual workspace. Whiteboards, flowcharts, wireframes and slide decks on one infinite canvas."
+    />
+    <meta name="twitter:image" content="https://nwsdraw.vercel.app/og.png" />
     <title>NWS Draw — Draw. Diagram. Present.</title>
   </head>
   <body>

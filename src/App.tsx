@@ -325,6 +325,26 @@ export default function App() {
   };
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape closes any open modal even when a modal input has focus —
+      // this must run BEFORE the input/textarea guard below.
+      const anyModalOpen =
+        isCommandPaletteOpen ||
+        isTemplatesModalOpen ||
+        isDrawingsModalOpen ||
+        isShortcutsModalOpen ||
+        isEcosystemModalOpen ||
+        isAssetLibraryOpen;
+      if (e.key === 'Escape' && anyModalOpen) {
+        e.preventDefault();
+        setIsCommandPaletteOpen(false);
+        setIsTemplatesModalOpen(false);
+        setIsDrawingsModalOpen(false);
+        setIsShortcutsModalOpen(false);
+        setIsEcosystemModalOpen(false);
+        setIsAssetLibraryOpen(false);
+        return;
+      }
+
       // Don't trigger if typing in an input/textarea
       const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (targetTag === 'input' || targetTag === 'textarea') return;
@@ -367,8 +387,12 @@ export default function App() {
         // Delete selected
         e.preventDefault();
         handleDeleteSelected();
+      } else if (isCmd && e.key.toLowerCase() === 'k') {
+        // Open command palette (the palette itself handles toggling closed)
+        e.preventDefault();
+        setIsCommandPaletteOpen(true);
       } else if (e.key === 'Escape') {
-        // Clear selection / tool
+        // Clear selection / tool (modals were handled above)
         setSelectedIds([]);
         setActiveTool('select');
       } else if (e.key.toLowerCase() === 'v') {
@@ -388,7 +412,20 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [elements, selectedIds, clipboard, handleUndo, handleRedo, handleElementsChange]);
+  }, [
+    elements,
+    selectedIds,
+    clipboard,
+    handleUndo,
+    handleRedo,
+    handleElementsChange,
+    isCommandPaletteOpen,
+    isTemplatesModalOpen,
+    isDrawingsModalOpen,
+    isShortcutsModalOpen,
+    isEcosystemModalOpen,
+    isAssetLibraryOpen,
+  ]);
 
   // Selected Elements Operations
   const handleUpdateSelected = (updates: Partial<CanvasElement>) => {

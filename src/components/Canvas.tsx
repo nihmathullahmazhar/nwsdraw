@@ -304,8 +304,13 @@ export const Canvas: React.FC<CanvasProps> = ({
     onElementsChange();
 
     if (defaultText) {
-      setEditingElementId(newId);
-      setEditingText(defaultText);
+      // Defer opening the inline editor to the next tick: the browser's native
+      // mousedown focus action runs right after this handler and would blur an
+      // immediately-mounted textarea, closing the editor before it appears.
+      setTimeout(() => {
+        setEditingElementId(newId);
+        setEditingText(defaultText);
+      }, 0);
     }
   };
 
@@ -782,6 +787,9 @@ export const Canvas: React.FC<CanvasProps> = ({
             onBlur={saveEditingText}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey && el.type !== 'sticky-note') {
+                e.preventDefault();
+                saveEditingText();
+              } else if (e.key === 'Escape') {
                 e.preventDefault();
                 saveEditingText();
               }
