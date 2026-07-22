@@ -21,9 +21,18 @@ import {
   exportToImage,
   exportToSvgFile,
   exportToPdf,
+  exportSlidesToPdf,
   exportNativeProjectFile,
   importNativeProjectFile,
 } from './lib/exportUtils';
+import {
+  readImageFile,
+  pdfFileToImages,
+  isImageFile,
+  isPdfFile,
+  isProjectFile,
+  ImportedImage,
+} from './lib/importUtils';
 
 import { Landing } from './components/Landing';
 import { Header } from './components/Header';
@@ -107,6 +116,9 @@ export default function App() {
   // Presentation Mode State
   const [activeSlideIndex, setActiveSlideIndex] = useState(0);
   const [isPresentationViewOpen, setIsPresentationViewOpen] = useState(false);
+
+  // Import progress overlay ("Rendering page 3/12…")
+  const [importBusy, setImportBusy] = useState<string | null>(null);
 
   // Initialize or load last project from IndexedDB
   useEffect(() => {
@@ -551,7 +563,7 @@ export default function App() {
   };
 
   // Export Dispatcher
-  const handleExport = (format: 'png' | 'jpeg' | 'svg' | 'pdf' | 'nwsdraw') => {
+  const handleExport = (format: 'png' | 'jpeg' | 'svg' | 'pdf' | 'deck-pdf' | 'nwsdraw') => {
     const bgColor = isDarkMode ? '#020617' : '#ffffff';
     const svgStr = generateSvgFromElements(elements, bgColor);
     const fileName = project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -562,6 +574,11 @@ export default function App() {
       exportToSvgFile(svgStr, fileName);
     } else if (format === 'pdf') {
       exportToPdf(svgStr, fileName);
+    } else if (format === 'deck-pdf') {
+      // One page per slide; the active slide uses the live canvas elements
+      const deck = currentSlides.map((s, i) => (i === activeSlideIndex ? { ...s, elements } : s));
+      const svgs = deck.map((s) => generateSvgFromElements(s.elements, s.backgroundColor || bgColor));
+      exportSlidesToPdf(svgs, fileName);
     } else if (format === 'nwsdraw') {
       exportNativeProjectFile({ ...project, elements, viewport, gridType });
     }
@@ -579,6 +596,160 @@ export default function App() {
       alert(err.message || 'Failed to import project file.');
     }
   };
+
+  // ------------------------------------------------------------------ //
+  // Media imports — images & PDFs onto the canvas, or as a slide deck  //
+  // ------------------------------------------------------------------ //
+
+  const screenCenterOnCanvas = () => ({
+    x: (window.innerWidth / 2 - viewport.x) / viewport.zoom,
+    y: (window.innerHeight / 2 - viewport.y) / viewport.zoom,
+  });
+
+  /** Place imported images as canvas elements in a grid around a point. */
+  const placeImagesOnCanvas = (images: ImportedImage[], at?: { x: number; y: number }) => {
+    if (images.length === 0) return;
+    handleElementsChange();
+
+    const MAX_W = 480;
+    const GAP = 36;
+    const cols = Math.min(3, images.length);
+    const origin = at || screenCenterOnCanvas();
+
+    const sized = images.map((img) => {
+      const scale = Math.min(1, MAX_W / img.width);
+      return { ...img, w: Math.round(img.width * scale), h: Math.round(img.height * scale) };
+    });
+    const rowH = Math.max(...sized.map((s) => s.h)) + GAP;
+    const gridW = cols * (MAX_W + GAP) - GAP;
+
+    const now = Date.now();
+    const newEls: CanvasElement[] = sized.map((img, i) => ({
+      id: `img_${now}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+      type: 'image',
+      x: Math.round(origin.x - gridW / 2 + (i % cols) * (MAX_W + GAP)),
+      y: Math.round(origin.y - rowH / 2 + Math.floor(i / cols) * rowH),
+      width: img.w,
+      height: img.h,
+      src: img.src,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    setElements((prev) => [...prev, ...newEls]);
+    setSelectedIds(newEls.map((el) => el.id));
+    setActiveTool('select');
+  };
+
+  /** Build a presentation deck out of imported images (one per slide). */
+  const buildSlidesFromImages = (images: ImportedImage[]) => {
+    if (images.length === 0) return;
+    const SLIDE_W = 1280;
+    const SLIDE_H = 720;
+    const now = Date.now();
+
+    const newSlides: Slide[] = images.map((img, i) => {
+      const scale = Math.min(SLIDE_W / img.width, SLIDE_H / img.height);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      return {
+        id: `slide_${now}_${i}`,
+        title: `Slide ${i + 1}`,
+        elements: [
+          {
+            id: `img_${now}_${i}`,
+            type: 'image' as const,
+            x: Math.round((SLIDE_W - w) / 2),
+            y: Math.round((SLIDE_H - h) / 2),
+            width: w,
+            height: h,
+            src: img.src,
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        backgroundColor: isDarkMode ? '#0f172a' : '#ffffff',
+      };
+    });
+
+    handleElementsChange();
+    setProject((p) => {
+      const existing = p.mode === 'presentation' && p.slides ? p.slides : [];
+      return { ...p, mode: 'presentation', slides: [...existing, ...newSlides], updatedAt: Date.now() };
+    });
+    const startIndex = project.mode === 'presentation' && project.slides ? project.slides.length : 0;
+    setActiveSlideIndex(startIndex);
+    setElements(newSlides[0].elements);
+    setSelectedIds([]);
+    handleResetZoom();
+  };
+
+  const runImport = async (label: string, task: () => Promise<void>) => {
+    setImportBusy(label);
+    try {
+      await task();
+    } catch (err: any) {
+      alert(err?.message || 'Import failed.');
+    } finally {
+      setImportBusy(null);
+    }
+  };
+
+  const handleImportImages = (files: File[], asSlides: boolean, at?: { x: number; y: number }) =>
+    runImport(`Importing ${files.length} image${files.length > 1 ? 's' : ''}…`, async () => {
+      const images = await Promise.all(files.map(readImageFile));
+      if (asSlides) buildSlidesFromImages(images);
+      else placeImagesOnCanvas(images, at);
+    });
+
+  const handleImportPdf = (file: File, asSlides: boolean, at?: { x: number; y: number }) =>
+    runImport('Opening PDF…', async () => {
+      const pages = await pdfFileToImages(file, (done, total) =>
+        setImportBusy(`Rendering page ${done}/${total}…`)
+      );
+      if (asSlides) buildSlidesFromImages(pages);
+      else placeImagesOnCanvas(pages, at);
+    });
+
+  /** Drag & drop onto the canvas: images, PDFs and .nwsdraw files. */
+  const handleCanvasDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const files = [...(e.dataTransfer?.files || [])];
+    if (files.length === 0) return;
+
+    const dropPoint = {
+      x: (e.clientX - viewport.x) / viewport.zoom,
+      y: (e.clientY - viewport.y) / viewport.zoom,
+    };
+
+    const projectFile = files.find(isProjectFile);
+    if (projectFile) {
+      handleImportFile(projectFile);
+      return;
+    }
+    const pdf = files.find(isPdfFile);
+    if (pdf) {
+      handleImportPdf(pdf, project.mode === 'presentation', dropPoint);
+      return;
+    }
+    const images = files.filter(isImageFile);
+    if (images.length > 0) handleImportImages(images, false, dropPoint);
+  };
+
+  // Paste images from the clipboard straight onto the canvas
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (targetTag === 'input' || targetTag === 'textarea') return;
+      const files = [...(e.clipboardData?.files || [])].filter(isImageFile);
+      if (files.length > 0) {
+        e.preventDefault();
+        handleImportImages(files, false);
+      }
+    };
+    window.addEventListener('paste', onPaste);
+    return () => window.removeEventListener('paste', onPaste);
+  });
 
   // Template Loader
   const handleSelectTemplate = (template: Template) => {
@@ -644,10 +815,25 @@ export default function App() {
         isLayersOpen={isLayersOpen}
         onExport={handleExport}
         onImportFile={handleImportFile}
+        onImportImages={handleImportImages}
+        onImportPdf={handleImportPdf}
       />
 
       {/* Main Work Area */}
-      <div className="relative flex-1 w-full h-full overflow-hidden">
+      <div
+        className="relative flex-1 w-full h-full overflow-hidden"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleCanvasDrop}
+      >
+        {/* Import progress overlay */}
+        {importBusy && (
+          <div className="absolute inset-0 z-[70] flex items-center justify-center bg-slate-900/40 backdrop-blur-[2px]">
+            <div className="flex items-center gap-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-5 py-3.5 shadow-2xl">
+              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
+              <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{importBusy}</span>
+            </div>
+          </div>
+        )}
         {/* Floating Toolbar (Left) */}
         <Toolbar
           activeTool={activeTool}

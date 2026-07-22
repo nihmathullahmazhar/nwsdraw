@@ -634,6 +634,15 @@ export const Canvas: React.FC<CanvasProps> = ({
         }}
         className={`group ${isSelected ? 'ring-2 ring-indigo-500' : ''}`}
       >
+        {/* Imported image element */}
+        {el.type === 'image' && el.src && (
+          <img
+            src={el.src}
+            alt=""
+            draggable={false}
+            className="absolute inset-0 w-full h-full object-fill rounded-sm pointer-events-none select-none"
+          />
+        )}
         <svg className="w-full h-full overflow-visible pointer-events-none">
           {/* Pencil / Pen / Highlighter Path */}
           {(el.type === 'pencil' || el.type === 'pen' || el.type === 'highlighter') && finalPoints && (

@@ -550,8 +550,9 @@ export const Landing: React.FC<LandingProps> = ({ onLaunch }) => {
             </div>
             <h3 className="font-semibold text-zinc-100">Pro tooling everywhere</h3>
             <p className="text-[13px] leading-relaxed text-zinc-400">
-              Layers, a minimap, alignment guides, templates and a full asset library —
-              the same kit in every workspace.
+              Layers, a minimap, alignment guides, templates and a full asset library.
+              Import images and PDFs — even a whole PDF as a slide deck — and export
+              your deck back out as one.
             </p>
           </motion.div>
         </div>

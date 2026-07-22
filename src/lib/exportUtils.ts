@@ -116,6 +116,12 @@ export function generateSvgFromElements(
         svgContent += `<polygon points="${dPoints}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" opacity="${opacity}" ${dashAttr} ${rotTransform}/>`;
         break;
 
+      case 'image':
+        if (el.src) {
+          svgContent += `<image href="${el.src}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" preserveAspectRatio="none" opacity="${opacity}" ${rotTransform}/>`;
+        }
+        break;
+
       default:
         svgContent += `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" rx="6" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" opacity="${opacity}" ${rotTransform}/>`;
         break;
@@ -249,6 +255,72 @@ export function exportToPdf(svgString: string, filename: string): void {
     URL.revokeObjectURL(url);
   };
   img.src = url;
+}
+
+/**
+ * Export a whole slide deck as a multi-page PDF (one slide per page)
+ * via the browser print pipeline.
+ */
+export function exportSlidesToPdf(svgStrings: string[], filename: string): void {
+  if (svgStrings.length === 0) return;
+
+  const renderOne = (svgString: string): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          URL.revokeObjectURL(url);
+          reject(new Error('Canvas unavailable'));
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, img.width, img.height);
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Could not render slide'));
+      };
+      img.src = url;
+    });
+
+  Promise.all(svgStrings.map(renderOne)).then((pages) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const pageImgs = pages
+      .map((p) => `<div class="page"><img src="${p}" /></div>`)
+      .join('');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${filename}</title>
+          <style>
+            body { margin: 0; background: #fff; }
+            .page { display: flex; justify-content: center; align-items: center; min-height: 100vh; page-break-after: always; }
+            .page:last-child { page-break-after: auto; }
+            img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+            @media print {
+              .page { min-height: auto; height: 100vh; }
+            }
+          </style>
+        </head>
+        <body>
+          ${pageImgs}
+          <script>window.onload = () => { window.print(); window.close(); };</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  });
 }
 
 /**

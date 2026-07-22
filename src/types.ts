@@ -46,7 +46,8 @@ export type ElementType =
   | 'wireframe-dropdown'
   | 'asset-icon'
   | 'asset-badge'
-  | 'asset-sticker';
+  | 'asset-sticker'
+  | 'image';
 
 export type ToolType =
   | 'select'
@@ -103,6 +104,9 @@ export interface CanvasElement {
   // Icon / Asset specific
   iconName?: string;
   badgeLabel?: string;
+
+  // Image specific (data URL — kept local, saved with the project in IndexedDB)
+  src?: string;
 
   // Mindmap specific
   parentId?: string;
