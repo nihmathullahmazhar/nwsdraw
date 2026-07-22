@@ -13,6 +13,8 @@ interface CanvasProps {
   gridType: GridType;
   isDarkMode: boolean;
   onElementsChange: () => void;
+  /** Design mode: fixed artboard drawn behind the elements at canvas (0,0). */
+  artboard?: { width: number; height: number; background: string; label: string } | null;
 }
 
 export const Canvas: React.FC<CanvasProps> = ({
@@ -27,6 +29,7 @@ export const Canvas: React.FC<CanvasProps> = ({
   gridType,
   isDarkMode,
   onElementsChange,
+  artboard,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPanning, setIsPanning] = useState(false);
@@ -864,6 +867,28 @@ export const Canvas: React.FC<CanvasProps> = ({
           pointerEvents: 'auto',
         }}
       >
+        {/* Design-mode artboard — the fixed canvas drawn behind all elements */}
+        {artboard && (
+          <>
+            <div
+              className="absolute font-mono text-[11px] tracking-wider text-slate-400 dark:text-slate-500 select-none pointer-events-none"
+              style={{ left: 0, top: -24 }}
+            >
+              {artboard.label} · {artboard.width} × {artboard.height}
+            </div>
+            <div
+              className="absolute pointer-events-none rounded-sm ring-1 ring-slate-300/70 dark:ring-slate-600/70 shadow-[0_8px_40px_-8px_rgba(0,0,0,0.35)]"
+              style={{
+                left: 0,
+                top: 0,
+                width: artboard.width,
+                height: artboard.height,
+                background: artboard.background,
+              }}
+            />
+          </>
+        )}
+
         {/* Render all Mindmap Connection Lines between nodes */}
         <svg className="absolute inset-0 w-full h-full overflow-visible pointer-events-none">
           {elements

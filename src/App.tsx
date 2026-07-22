@@ -55,7 +55,7 @@ import { PresentationSlidesBar } from './components/PresentationSlidesBar';
 import { PresentationViewModal } from './components/PresentationViewModal';
 import { AlignmentToolbar } from './components/AlignmentToolbar';
 
-import { AssetDefinition } from './data/presetsAndAssets';
+import { AssetDefinition, CANVAS_PRESETS } from './data/presetsAndAssets';
 import { alignElements, distributeElements, groupElements, ungroupElements } from './lib/alignmentUtils';
 
 export default function App() {
@@ -197,6 +197,21 @@ export default function App() {
         ];
       }
       return updated;
+    });
+
+    // Entering design mode: frame the artboard in the viewport
+    if (mode === 'design') {
+      frameArtboard(project.canvasWidth || 1080, project.canvasHeight || 1080);
+    }
+  };
+
+  /** Center a design artboard of the given size in the viewport. */
+  const frameArtboard = (w: number, h: number) => {
+    const zoom = Math.min(0.8, (window.innerWidth - 240) / w, (window.innerHeight - 240) / h);
+    setViewport({
+      x: (window.innerWidth - w * zoom) / 2,
+      y: (window.innerHeight - h * zoom) / 2,
+      zoom,
     });
   };
 
@@ -863,10 +878,12 @@ export default function App() {
                   canvasHeight: preset.height,
                   backgroundColor: preset.backgroundColor || p.backgroundColor,
                 }));
+                frameArtboard(preset.width, preset.height);
               }}
               onChangeCustomDimensions={(width, height) => {
                 handleElementsChange();
                 setProject((p) => ({ ...p, canvasWidth: width, canvasHeight: height, canvasPresetId: undefined }));
+                frameArtboard(width, height);
               }}
               onChangeBackgroundColor={(color) => {
                 handleElementsChange();
@@ -934,6 +951,17 @@ export default function App() {
           gridType={gridType}
           isDarkMode={isDarkMode}
           onElementsChange={handleElementsChange}
+          artboard={
+            project.mode === 'design'
+              ? {
+                  width: project.canvasWidth || 1080,
+                  height: project.canvasHeight || 1080,
+                  background: project.backgroundColor || (isDarkMode ? '#0f172a' : '#ffffff'),
+                  label:
+                    CANVAS_PRESETS.find((p) => p.id === project.canvasPresetId)?.name || 'Custom',
+                }
+              : null
+          }
         />
 
         {/* Minimap Overview Radar */}
