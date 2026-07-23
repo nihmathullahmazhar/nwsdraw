@@ -1,5 +1,55 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { CanvasElement, ToolType, ElementType, Point, Viewport, GridType, ResizeHandle } from '../types';
+import {
+  Award,
+  Briefcase,
+  Calendar,
+  Check,
+  CheckCircle,
+  Cloud,
+  Code,
+  Cpu,
+  Database,
+  DollarSign,
+  FileText,
+  Globe,
+  Lock,
+  Server,
+  Shield,
+  Star,
+  Target,
+  Terminal,
+  TrendingUp,
+  Users,
+  Zap,
+} from 'lucide-react';
+
+/** Lucide icons used by Asset Library elements (el.iconName). */
+const ASSET_ICONS: Record<string, React.FC<{ className?: string; style?: React.CSSProperties }>> = {
+  Award, Briefcase, Calendar, Check, CheckCircle, Cloud, Code, Cpu, Database,
+  DollarSign, FileText, Globe, Lock, Server, Shield, Star, Target, Terminal,
+  TrendingUp, Users, Zap,
+};
+
+/** Points string for a 5-point star fitting a w×h box. */
+function starPoints(w: number, h: number): string {
+  const cx = w / 2;
+  const cy = h / 2;
+  const outerR = Math.min(w, h) / 2;
+  const innerR = outerR * 0.4;
+  const pts: string[] = [];
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? outerR : innerR;
+    const angle = (Math.PI / 5) * i - Math.PI / 2;
+    pts.push(`${(cx + r * Math.cos(angle)).toFixed(1)},${(cy + r * Math.sin(angle)).toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+/** Points string for a hexagon fitting a w×h box. */
+function hexagonPoints(w: number, h: number): string {
+  return `${w * 0.25},0 ${w * 0.75},0 ${w},${h / 2} ${w * 0.75},${h} ${w * 0.25},${h} 0,${h / 2}`;
+}
 
 interface CanvasProps {
   elements: CanvasElement[];
@@ -630,8 +680,10 @@ export const Canvas: React.FC<CanvasProps> = ({
           position: 'absolute',
           left: el.x,
           top: el.y,
-          width: el.width,
-          height: el.height,
+          // Never 0: an SVG with zero width/height is skipped entirely by the
+          // renderer, which made element-bound connectors (w/h 0) invisible.
+          width: Math.max(el.width, 1),
+          height: Math.max(el.height, 1),
           opacity,
           ...rotationStyle,
         }}
@@ -660,30 +712,48 @@ export const Canvas: React.FC<CanvasProps> = ({
             />
           )}
 
-          {/* Line & Arrow */}
-          {(el.type === 'line' || el.type === 'arrow') && finalPoints && finalPoints.length >= 2 && (
-            <g>
-              <line
-                x1={finalPoints[0].x - el.x}
-                y1={finalPoints[0].y - el.y}
-                x2={finalPoints[1].x - el.x}
-                y2={finalPoints[1].y - el.y}
-                stroke={stroke}
-                strokeWidth={sw}
-                strokeDasharray={dashArray}
-              />
-              {el.type === 'arrow' && (
-                <polygon
-                  points={`${finalPoints[1].x - el.x},${finalPoints[1].y - el.y} ${
-                    finalPoints[1].x - el.x - 10
-                  },${finalPoints[1].y - el.y - 5} ${finalPoints[1].x - el.x - 10},${
-                    finalPoints[1].y - el.y + 5
-                  }`}
-                  fill={stroke}
-                />
-              )}
-            </g>
-          )}
+          {/* Line, Arrow, Double Arrow & Connector */}
+          {(el.type === 'line' || el.type === 'arrow' || el.type === 'double-arrow' || el.type === 'connector') &&
+            finalPoints &&
+            finalPoints.length >= 2 &&
+            (() => {
+              const x1 = finalPoints[0].x - el.x;
+              const y1 = finalPoints[0].y - el.y;
+              const x2 = finalPoints[1].x - el.x;
+              const y2 = finalPoints[1].y - el.y;
+              const angle = Math.atan2(y2 - y1, x2 - x1);
+              const head = (hx: number, hy: number, a: number) => {
+                const s = 10;
+                return `${hx},${hy} ${hx - s * Math.cos(a - 0.45)},${hy - s * Math.sin(a - 0.45)} ${
+                  hx - s * Math.cos(a + 0.45)
+                },${hy - s * Math.sin(a + 0.45)}`;
+              };
+              const hasEndHead = el.type === 'arrow' || el.type === 'double-arrow' || el.type === 'connector';
+              return (
+                <g>
+                  <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={stroke} strokeWidth={sw} strokeDasharray={dashArray} />
+                  {hasEndHead && <polygon points={head(x2, y2, angle)} fill={stroke} />}
+                  {el.type === 'double-arrow' && <polygon points={head(x1, y1, angle + Math.PI)} fill={stroke} />}
+                  {/* Label at the midpoint (connector text like Yes / No) */}
+                  {el.text && (
+                    <text
+                      x={(x1 + x2) / 2}
+                      y={(y1 + y2) / 2 - 7}
+                      textAnchor="middle"
+                      fontSize={el.fontSize || 12}
+                      fontWeight={600}
+                      fill={el.textColor || stroke}
+                      stroke={isDarkMode ? '#020617' : '#f8fafc'}
+                      strokeWidth={4}
+                      paintOrder="stroke"
+                      style={{ fontFamily: 'system-ui, sans-serif' }}
+                    >
+                      {el.text}
+                    </text>
+                  )}
+                </g>
+              );
+            })()}
 
           {/* Shapes */}
           {el.type === 'rectangle' && (
@@ -769,18 +839,160 @@ export const Canvas: React.FC<CanvasProps> = ({
             <rect width={el.width} height={el.height} rx={12} fill={fill} stroke={stroke} strokeWidth={sw} strokeDasharray={dashArray} />
           )}
 
+          {/* Star & Hexagon */}
+          {el.type === 'star' && (
+            <polygon points={starPoints(el.width, el.height)} fill={fill} stroke={stroke} strokeWidth={sw} strokeDasharray={dashArray} strokeLinejoin="round" />
+          )}
+          {el.type === 'hexagon' && (
+            <polygon points={hexagonPoints(el.width, el.height)} fill={fill} stroke={stroke} strokeWidth={sw} strokeDasharray={dashArray} />
+          )}
+
+          {/* Flowchart: Input (parallelogram), Database (cylinder), Document (wavy base) */}
+          {el.type === 'flowchart-input' && (
+            <polygon
+              points={`${el.width * 0.2},0 ${el.width},0 ${el.width * 0.8},${el.height} 0,${el.height}`}
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={sw}
+              strokeDasharray={dashArray}
+            />
+          )}
+          {el.type === 'flowchart-db' && (
+            <g>
+              <path
+                d={`M 0 ${el.height * 0.15} L 0 ${el.height * 0.85} A ${el.width / 2} ${el.height * 0.15} 0 0 0 ${el.width} ${el.height * 0.85} L ${el.width} ${el.height * 0.15}`}
+                fill={fill}
+                stroke={stroke}
+                strokeWidth={sw}
+              />
+              <ellipse cx={el.width / 2} cy={el.height * 0.15} rx={el.width / 2} ry={el.height * 0.15} fill={fill} stroke={stroke} strokeWidth={sw} />
+            </g>
+          )}
+          {el.type === 'flowchart-doc' && (
+            <path
+              d={`M 0 0 L ${el.width} 0 L ${el.width} ${el.height * 0.82} Q ${el.width * 0.75} ${el.height * 1.02} ${el.width * 0.5} ${el.height * 0.87} Q ${el.width * 0.25} ${el.height * 0.72} 0 ${el.height * 0.87} Z`}
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={sw}
+              strokeDasharray={dashArray}
+            />
+          )}
+
+          {/* UML Class & ERD */}
+          {(el.type === 'uml-class' || el.type === 'erd-entity') && (
+            <g>
+              <rect width={el.width} height={el.height} rx={4} fill={fill} stroke={stroke} strokeWidth={sw} />
+              {el.type === 'uml-class' && (
+                <>
+                  <line x1={0} y1={el.height * 0.3} x2={el.width} y2={el.height * 0.3} stroke={stroke} strokeWidth={1} />
+                  <line x1={0} y1={el.height * 0.65} x2={el.width} y2={el.height * 0.65} stroke={stroke} strokeWidth={1} />
+                </>
+              )}
+            </g>
+          )}
+          {el.type === 'erd-relation' && (
+            <polygon
+              points={`${el.width / 2},0 ${el.width},${el.height / 2} ${el.width / 2},${el.height} 0,${el.height / 2}`}
+              fill={fill}
+              stroke={stroke}
+              strokeWidth={sw}
+            />
+          )}
+
+          {/* Wireframe kit */}
+          {el.type === 'wireframe-navbar' && (
+            <g>
+              <rect width={el.width} height={el.height} rx={8} fill={fill} stroke={stroke} strokeWidth={sw} />
+              <circle cx={el.height / 2} cy={el.height / 2} r={el.height * 0.22} fill={stroke} opacity={0.7} />
+              {[0.55, 0.7, 0.85].map((fx, i) => (
+                <line
+                  key={i}
+                  x1={el.width * fx}
+                  y1={el.height * 0.35}
+                  x2={el.width * fx + Math.min(28, el.width * 0.1)}
+                  y2={el.height * 0.35}
+                  stroke={stroke}
+                  strokeWidth={el.height * 0.28}
+                  opacity={0.45}
+                />
+              ))}
+            </g>
+          )}
+          {el.type === 'wireframe-sidebar' && (
+            <g>
+              <rect width={el.width} height={el.height} rx={8} fill={fill} stroke={stroke} strokeWidth={sw} />
+              {[0.15, 0.28, 0.41, 0.54].map((fy, i) => (
+                <rect key={i} x={el.width * 0.12} y={el.height * fy} width={el.width * 0.76} height={el.height * 0.06} rx={3} fill={stroke} opacity={i === 0 ? 0.7 : 0.35} />
+              ))}
+            </g>
+          )}
+          {el.type === 'wireframe-image' && (
+            <g>
+              <rect width={el.width} height={el.height} rx={6} fill={fill} stroke={stroke} strokeWidth={sw} />
+              <line x1={0} y1={0} x2={el.width} y2={el.height} stroke={stroke} strokeWidth={1} opacity={0.6} />
+              <line x1={el.width} y1={0} x2={0} y2={el.height} stroke={stroke} strokeWidth={1} opacity={0.6} />
+            </g>
+          )}
+          {el.type === 'wireframe-input' && (
+            <g>
+              <rect width={el.width} height={el.height} rx={6} fill={fill} stroke={stroke} strokeWidth={sw} />
+              <line x1={10} y1={el.height * 0.25} x2={10} y2={el.height * 0.75} stroke={stroke} strokeWidth={1.5} opacity={0.7} />
+            </g>
+          )}
+          {el.type === 'wireframe-toggle' && (
+            <g>
+              <rect width={el.width} height={el.height} rx={el.height / 2} fill={fill} stroke={stroke} strokeWidth={sw} />
+              <circle cx={el.width - el.height / 2} cy={el.height / 2} r={el.height * 0.34} fill={stroke} />
+            </g>
+          )}
+          {el.type === 'wireframe-badge' && (
+            <rect width={el.width} height={el.height} rx={el.height / 2} fill={fill} stroke={stroke} strokeWidth={sw} />
+          )}
+          {el.type === 'wireframe-dropdown' && (
+            <g>
+              <rect width={el.width} height={el.height} rx={6} fill={fill} stroke={stroke} strokeWidth={sw} />
+              <polyline
+                points={`${el.width - 22},${el.height * 0.42} ${el.width - 15},${el.height * 0.58} ${el.width - 8},${el.height * 0.42}`}
+                fill="none"
+                stroke={stroke}
+                strokeWidth={2}
+                strokeLinecap="round"
+              />
+            </g>
+          )}
+
+          {/* Asset icon chip background */}
+          {el.type === 'asset-icon' && (
+            <rect width={el.width} height={el.height} rx={12} fill={fill} stroke={stroke} strokeWidth={sw} />
+          )}
+
           {/* Asset Badge / Sticker */}
           {(el.type === 'asset-badge' || el.type === 'asset-sticker') && (
             <rect width={el.width} height={el.height} rx={8} fill={fill} stroke={stroke} strokeWidth={sw} />
           )}
         </svg>
 
+        {/* Asset icon glyph (lucide) */}
+        {el.type === 'asset-icon' && el.iconName && ASSET_ICONS[el.iconName] && (
+          <div className="absolute inset-x-0 top-0 bottom-[35%] flex items-center justify-center pointer-events-none">
+            {(() => {
+              const Icon = ASSET_ICONS[el.iconName!];
+              const size = Math.min(el.width, el.height) * 0.38;
+              return <Icon style={{ width: size, height: size, color: el.strokeColor || stroke }} />;
+            })()}
+          </div>
+        )}
+
         {/* Text inside elements */}
-        {el.text && !isEditing && (
+        {el.text &&
+          !isEditing &&
+          !(el.type === 'line' || el.type === 'arrow' || el.type === 'double-arrow' || el.type === 'connector') && (
           <div
-            className="absolute inset-0 flex items-center justify-center p-2 text-center pointer-events-none select-none overflow-hidden"
+            className="absolute inset-0 flex justify-center p-2 text-center pointer-events-none select-none overflow-hidden"
             style={{
-              fontSize: el.fontSize || 14,
+              // Asset icon chips draw their glyph in the top part — text sits below it
+              alignItems: el.type === 'asset-icon' ? 'flex-end' : 'center',
+              fontSize: el.type === 'asset-icon' ? Math.min(el.fontSize || 12, 12) : el.fontSize || 14,
               fontFamily: el.fontFamily === 'serif' ? 'Georgia, serif' : el.fontFamily === 'mono' ? 'monospace' : 'system-ui, sans-serif',
               color: el.textColor || (el.type === 'sticky-note' ? '#854d0e' : isDarkMode ? '#f8fafc' : '#0f172a'),
               fontWeight: el.fontWeight || 'normal',

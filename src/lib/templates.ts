@@ -21,7 +21,7 @@ export const TEMPLATES: Template[] = [
         type: 'text',
         x: 100,
         y: 60,
-        width: 400,
+        width: 560,
         height: 50,
         text: '💡 Team Brainstorming Session',
         fontSize: 28,
